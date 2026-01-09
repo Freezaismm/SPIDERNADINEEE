@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SpiderNadine🕸️</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Foto & Frame */
+        .photo-frame {
+            width: 120px;
+            height: 120px;
+            border: 6px solid #fff;
+            outline: 6px solid #d00000;
+            margin-bottom: 20px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .photo-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            image-rendering: auto;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; image-rendering: pixelated; }
+        body { margin: 0; overflow: hidden; background: #202020; font-family: 'Press Start 2P', cursive; }
+        #gameArea { position: relative; width: 100vw; height: 100vh; touch-action: none; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #gameArea::after {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%; pointer-events: none; z-index: 5;
+        }
+
+        #hud { 
+            position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-around; 
+            color: #fff; font-size: 12px; z-index: 10; text-shadow: 3px 3px #000;
+        }
+
+        .overlay { 
+            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); 
+            display: flex; flex-direction: column; justify-content: center; 
+            align-items: center; z-index: 100; color: white; text-align: center; 
+            padding: 25px; 
+        }
+        
+        .btn-pixel { 
+            background: #d00000; color: white; border: 4px solid #fff; padding: 15px 30px; 
+            font-family: 'Press Start 2P'; font-size: 12px; cursor: pointer;
+            box-shadow: 6px 6px 0px #500000; margin-top: 20px; text-transform: uppercase;
+        }
+        .btn-pixel:active { transform: translate(3px, 3px); box-shadow: 3px 3px 0px #500000; }
+
+#letter-box { 
+    background: #fff; 
+    color: #222; 
+    padding: 20px; 
+    border: 6px solid #d00000; 
+    
+    /* GANTI BAGIAN INI */
+    font-family: 'Press Start 2P', cursive; 
+    font-size: 9px; /* Font pixel lebih besar, jadi 9px atau 10px sudah cukup */
+    line-height: 2.2; /* Kasih jarak antar baris biar enak dibaca */
+    
+    text-align: left; 
+    max-height: 300px; 
+    overflow-y: auto; 
+    margin: 15px 0; 
+    width: 100%; 
+    max-width: 360px; 
+    white-space: pre-wrap; 
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+        
+        .hidden { display: none !important; }
+        .pixel-title { color: #f1c40f; font-size: 18px; margin-bottom: 10px; text-shadow: 4px 4px #d35400; }
+    </style>
+</head>
+<body>
+
+<div id="gameArea">
+    <div id="hud">
+        <div>PROGRESS: <span id="dist">0</span>/40</div>
+    </div>
+
+    <div id="start-screen" class="overlay">
+        <div class="photo-frame">
+            <img src="https://img.sanishtech.com/u/2e22bd3c5e3e6720f8eb23c34b306410.jpg" alt="My Queen">
+        </div>
+        <h1 class="pixel-title">SPIDEY NADINE</h1>
+        <p style="color: #00ffcc; font-size: 10px; margin-bottom: 20px;">FOR MY MJ : NADINE SYAKIRA PRETTY</p>
+        <button class="btn-pixel" onclick="initGame()">START GAME</button>
+    </div>
+
+    <div id="ui-win" class="overlay hidden">
+        <h1 class="pixel-title">YEEYYY BERHASILL SAYANGG! 🏆</h1>
+        <div id="letter-box"></div>
+        <button class="btn-pixel" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <div id="ui-lose" class="overlay hidden">
+        <h1 style="color: #ff0000; text-shadow: 4px 4px #500000;">NICE TRYY</h1>
+        <p style="font-size: 10px;">GASS LAGI SAYANGG</p>
+        <button class="btn-pixel" onclick="location.reload()">CONTINUE?</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    // 1. Siapkan musik di memori sejak awal
+const bgmFile = new Audio('https://files.catbox.moe/8htb1z.mp3');
+bgmFile.preload = 'auto'; // Paksa download duluan
+bgmFile.loop = true;
+bgmFile.volume = 0.6;
+
+    let width, height, active = false, audioCtx;
+    let distance = 0, buildings = [], bombs = [], particles = [];
+    const targetDistance = 40;
+
+    const spidey = { x: 100, y: 0, vx: 0, vy: 0, gravity: 0.4, friction: 0.98, radius: 12, swinging: false, ropeX: 0, ropeY: 0 };
+    const boss = { x: 0, y: 100, targetY: 100 };
+
+    function resize() {
+        width = window.innerWidth; height = window.innerHeight;
+        canvas.width = width; canvas.height = height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- BAGIAN YANG DIUBAH UNTUK MUSIK ---
+    function initGame() {
+        // 1. Siapkan Audio Context untuk SFX
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        
+        // 2. Trik Baru: Buat Audio Object dan paksa Load
+        if(!window.bgMusic) {
+            window.bgMusic = new Audio();
+            window.bgMusic.src = 'https://files.catbox.moe/8htb1z.mp3';
+            window.bgMusic.loop = true;
+            window.bgMusic.volume = 0.6;
+        }
+        
+        // Paksa browser untuk memuat dan memutar
+        window.bgMusic.load(); 
+        window.bgMusic.play().then(() => {
+            console.log("Musik Berhasil!");
+        }).catch(e => {
+            console.log("Gagal lagi, coba klik lebih mantap");
+        });
+
+        // 3. Sisanya tetap sama
+        document.getElementById('start-screen').classList.add('hidden');
+        spidey.y = height / 3; spidey.vx = 0; spidey.vy = 0;
+        distance = 0; buildings = []; bombs = []; particles = []; active = true;
+        for(let i=0; i<3; i++) spawnBuilding(width + (i * 350));
+        requestAnimationFrame(gameLoop);
+    }
+
+
+    function spawnBuilding(xPos) {
+        buildings.push({ x: xPos || width + 200, w: 80, h: 120 + Math.random() * (height - 400), passed: false });
+    }
+
+    function sfx(f, type='sine') {
+        if(!audioCtx) return;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.value = f; g.gain.value = 0.05;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.1);
+    }
+
+    const press = (e) => { 
+        if(!active) return; e.preventDefault(); 
+        spidey.swinging = true; spidey.ropeX = spidey.x + 120; spidey.ropeY = 0;
+        sfx(400); 
+    };
+    const release = () => spidey.swinging = false;
+    
+    canvas.addEventListener('touchstart', press, {passive: false}); 
+    canvas.addEventListener('touchend', release);
+    canvas.addEventListener('mousedown', press); 
+    canvas.addEventListener('mouseup', release);
+
+    function drawPixelSpidey() {
+    // 1. Badan/Hoodie (Putih)
+    ctx.fillStyle = "#ffffff"; 
+    ctx.fillRect(spidey.x - 12, spidey.y - 12, 24, 24);
+
+    // 2. Pola Hoodie/Lengan (Pink Cerah)
+    ctx.fillStyle = "#ff69b4"; // Hot Pink
+    ctx.fillRect(spidey.x - 12, spidey.y - 4, 6, 12); // Lengan kiri
+    ctx.fillRect(spidey.x + 6, spidey.y - 4, 6, 12);  // Lengan kanan
+    
+    // 3. Bagian Dalam Hood (Hitam/Ungu Gelap)
+    ctx.fillStyle = "#2d3436";
+    ctx.fillRect(spidey.x - 8, spidey.y - 8, 16, 16);
+
+    // 4. Mata Khas Gwen (Putih dengan outline Pink)
+    ctx.fillStyle = "#ff69b4"; 
+    ctx.fillRect(spidey.x - 9, spidey.y - 7, 7, 6); // Kelopak Pink Kiri
+    ctx.fillRect(spidey.x + 2, spidey.y - 7, 7, 6); // Kelopak Pink Kanan
+    
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(spidey.x - 7, spidey.y - 5, 4, 3); // Pupil Putih Kiri
+    ctx.fillRect(spidey.x + 3, spidey.y - 5, 4, 3); // Pupil Putih Kanan
+}
+
+
+    function drawBuilding(b) {
+        ctx.fillStyle = "#4a4a4a"; ctx.fillRect(b.x, height - b.h, b.w, b.h);
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 4; ctx.strokeRect(b.x, height - b.h, b.w, b.h);
+        ctx.fillStyle = "#f1c40f";
+        for(let row=0; row < b.h/40 - 1; row++) {
+            ctx.fillRect(b.x + 15, height - b.h + 20 + (row*40), 15, 15);
+            ctx.fillRect(b.x + 50, height - b.h + 20 + (row*40), 15, 15);
+        }
+    }
+
+    function gameLoop() {
+        if(!active) return;
+        ctx.fillStyle = "#3498db"; ctx.fillRect(0,0,width,height);
+        ctx.fillStyle = "#fff"; ctx.fillRect(100, 100, 60, 20); ctx.fillRect(120, 80, 40, 20);
+
+        boss.x = width - 80;
+        boss.y += (boss.targetY - boss.y) * 0.02;
+        if(Math.abs(boss.y - boss.targetY) < 10) boss.targetY = 50 + Math.random() * 250;
+        if(Math.random() < 0.008) { bombs.push({x: boss.x, y: boss.y, vx: -4, vy: 1}); sfx(150, 'square'); }
+        ctx.font = "40px Arial"; ctx.fillText("👹", boss.x, boss.y);
+
+        if(spidey.swinging) {
+            let dx = spidey.ropeX - spidey.x, dy = spidey.ropeY - spidey.y, dist = Math.sqrt(dx*dx + dy*dy);
+            let force = (dist - 40) * 0.006; 
+            spidey.vx += (dx / dist) * force; spidey.vy += (dy / dist) * force;
+            ctx.setLineDash([10, 5]); ctx.strokeStyle = "#fff"; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(spidey.x, spidey.y); ctx.lineTo(spidey.ropeX, spidey.ropeY); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        spidey.vy += spidey.gravity; spidey.vx *= spidey.friction; spidey.vy *= spidey.friction;
+        spidey.y += spidey.vy; spidey.x = 100;
+
+        drawPixelSpidey();
+
+        bombs.forEach((b, i) => {
+            b.x += b.vx; b.y += b.vy; ctx.fillText("🕸️", b.x, b.y);
+            if(Math.hypot(spidey.x - b.x, spidey.y - b.y) < 25) loseGame();
+            if(b.x < -20) bombs.splice(i, 1);
+        });
+
+        buildings.forEach((b, i) => {
+            b.x -= 4.5; drawBuilding(b);
+            if(spidey.x + 12 > b.x && spidey.x - 12 < b.x + b.w && spidey.y + 12 > height - b.h) loseGame();
+            if(b.x + b.w < spidey.x && !b.passed) { 
+                b.passed = true; distance++; document.getElementById('dist').innerText = distance;
+                for(let p=0; p<5; p++) particles.push({x: spidey.x, y: spidey.y, vx: Math.random()*5, vy: -Math.random()*5, l: 1});
+                sfx(800); 
+            }
+        });
+
+        particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.l -= 0.02;
+            ctx.fillStyle = `rgba(255, 255, 255, ${p.l})`; ctx.fillRect(p.x, p.y, 8, 8);
+            if(p.l <= 0) particles.splice(i, 1);
+        });
+
+        if(buildings[0] && buildings[0].x < -150) { buildings.shift(); spawnBuilding(); }
+        if(distance >= targetDistance) winGame();
+        if(spidey.y > height || spidey.y < -50) loseGame();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function loseGame() { 
+        active = false; 
+        if(window.bgMusic) window.bgMusic.pause();
+        sfx(100, 'square'); 
+        document.getElementById('ui-lose').classList.remove('hidden'); 
+    }
+// Fungsi buat bikin melodi kemenangan pakai kode JS murni
+function playWinMelody() {
+    const tones = [
+        {f: 523, d: 0.1}, {f: 523, d: 0.1}, {f: 523, d: 0.1}, {f: 523, d: 0.3}, 
+        {f: 415, d: 0.3}, {f: 466, d: 0.3}, {f: 523, d: 0.2}, {f: 466, d: 0.1}, {f: 523, d: 0.6}
+    ];
+    
+    let time = audioCtx.currentTime;
+    tones.forEach(t => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'square'; // Suara khas Nintendo (NES)
+        o.frequency.value = t.f;
+        g.gain.setValueAtTime(0.1, time);
+        g.gain.exponentialRampToValueAtTime(0.0001, time + t.d);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start(time);
+        o.stop(time + t.d);
+        time += t.d;
+    });
+}
+
+function winGame() {
+    active = false; 
+    
+    // Matikan musik utama (kalau ada)
+    if(window.bgMusic) window.bgMusic.pause();
+    
+    // MAININ MELODI MENANG DARI JS!
+    playWinMelody();
+
+    document.getElementById('ui-win').classList.remove('hidden');
+    const box = document.getElementById('letter-box');
+    const text = "SEPERTI KAMU BERHASIL LOLOS SNBP KANN SAYANGG! 🩵✨\n\naamiin yaaakk, waahhh akhirnyaa yak seperti yang kamu bilanggg.. hasil kerjaa kerasmu selama 3 tahun akhirnyaa muncull yaa sayanggg.. wawww kereenn bangett sumpaaa deehhh, masuk top 40 woiii.. bayanginn atuu kamu nomee 40 dari 400 orangg wawww kerenn bangett sumpaa, dann ituu nantii bisa membawa kamu ke undipppp.. aamiin dehhh\n\nSekali lagi selamat yaa atas hasil yang memuaskann ituuu, fathan bangga bangett bisa jadi bagiann dari perjuangan kamuu.. fathann tau banget gimanaa yang kamu awalnyaa hopeless dari elegiblee, teruss semangatt, teruss hopeless lagii dan muter muter sampaii akhirnyaa di titik akhirr kamuu bener bener bisa melihat hasil perjuangan kamu sendiriii, aku seneng bangett bisaa menguatkan dan selaluu percaya di setiap prosesmuu. fathann selaluu percaya kamuu sayangg.. apapunn ituu kamu pasti akan berhasill.. fathann berdiri disini selama setahun dengan banyakk suka dan duka, tapii fathann tetep ada di sampingmu karenaa fathann yakinn kamu bisa melewati ini semuaa dan bisa menggapai cita cita kamuu, tugas fathann untuk meyakinkan dann terus support kamuu selamanyaa.. dan hari inii hasilnyaa pun tibaaa, kehadiran fathann menjadi bukti kalau perjuanganmu ga sia siaaa naddd.. dann ingatt yakk fathann bakal disinii teruss apapun yang terjadii fathann akan ada di belakang kamu teruss untukk menjagaa agar kamu tetapp di jalan menuju kesuksesannn yaakkk..  \n\nbtw timakasiii banyakk yaaa udahh buatinn fathann simulasii lolos snbp versii so sweeettt, timakasii udaa effort bikinn ituu agar semangat fathann lebih menyalaa lagii yaaa, jujurr tadii sempett ragu raguu apakah akan berhasil apaa tidaaa.. tapii setelah melihat dan membaca kata katamu yang ORANG YANG BERPELUANG MENANG ADALAH ORANG YANG PERCAYA DIA BISA wahh disitu ak langsung semangatt lagii nii untuk mengejarr masa depannn.. aku bakal terus berambisi menjadi seorang sarjana pertamaa di keluarga akk, walaupunnn banyak halangan yang akan aku hadapo, tapii aku bakal tetapp lewatii walaupun akan berdarah darahhh.. plisss semogaaa semuaa di lancarkann yaaa\n\nokeyyydeee karenaa sudaa malam jugaakkk, aku mau ngucapin sekamatt berisitirahaatt yaaaa sayangggg.. terimaakasihh yaa buat hari iniii.. terimakasihh atas segala doa doaa yang kamu panjatkann yaaaa.. semogaaa doa doanyaaa berbalik lagii ke kamuu yaa sayanggg.. aaamiin, kitaa perjuangkann untukk biruuu yaakkkk.. fathan is blue, nadine is bluee andd snbp is bluee yaaa.. okeeyydee goodnight sayangg maaff yaa kalau kata katanya ada yang kuranggg, soalnyaa udaa malemmm heheheeee.. yasudaa goodnightt yaa sayangggg.. semogaa kamu mimpi indahh loloss snbp yaaa.. dan semoga mimpinituu jadii kenyataan yaa aamiin, okeydee paipaii sayanggg.. see uu besokk yaa semogaa kitaa ke perpusss.. paipaiii je t'aimeee bieennn mon amouurrr 💙🩵💙🩵💙🩵️🕸️";
+    
+    let i = 0; box.innerHTML = "";
+    function typing() { 
+        if(i < text.length) { 
+            box.innerHTML += text.charAt(i); i++; 
+            setTimeout(typing, 40); box.scrollTop = box.scrollHeight; 
+        } 
+    }
+    typing();
+}
+</script>
+</body>
+</html>
